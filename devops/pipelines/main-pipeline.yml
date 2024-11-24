@@ -1,0 +1,204 @@
+trigger:
+- main
+
+stages:
+- stage: Infrastructure
+  displayName: "Provision Infrastructure"
+  jobs:
+    - job: Provision
+      displayName: "Provision Infrastructure"
+      container:
+        image: 'hashicorp/terraform:1.9'
+
+      steps:
+      # Instalar o Ansible
+      - script: |
+          apk add --update --no-cache python3 py3-pip openssl sshpass
+          pip install ansible
+        displayName: "Install Ansible"
+
+      # Inicializar e aplicar Terraform
+      - script: |
+          echo "Initializing Terraform"
+          terraform -chdir=devops/terraform init
+          echo "Validating Terraform"
+          terraform -chdir=devops/terraform validate
+          echo "Applying Terraform"
+          terraform -chdir=devops/terraform apply -auto-approve
+        displayName: "Run Terraform"
+
+      # Executar o Ansible
+      - script: |
+          echo "Executing Ansible Playbook"
+          ansible-playbook -i devops/ansible/inventory.yml devops/ansible/deploy.yml
+        displayName: "Run Ansible Playbook"
+
+- stage: Build
+  displayName: "Build Application"
+  dependsOn: Infrastructure
+  jobs:
+    - job: Build
+      displayName: "Build Application"
+      pool:
+        vmImage: 'windows-latest'
+
+      steps:
+      - task: UseDotNet@2
+        inputs:
+          packageType: 'sdk'
+          version: '6.x'
+          installationPath: $(Agent.ToolsDirectory)/dotnet
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'restore'
+          projects: '**/*.sln'
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'build'
+          arguments: '--configuration Release'
+          projects: '**/*.sln'
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: $(System.DefaultWorkingDirectory)
+          ArtifactName: 'drop'
+          publishLocation: 'Container'
+
+- stage: Release
+  displayName: "Release Application"
+  dependsOn: Build
+  jobs:
+    - job: Release
+      displayName: "Deploy Application"
+      pool:
+        vmImage: 'ubuntu-latest'
+
+      steps:
+      # Baixar artefatos do build
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          artifactName: 'drop'
+          downloadPath: $(Pipeline.Workspace)/drop
+
+      # Copiar arquivos para VM usando SCP
+      - script: |
+          echo "Copying application files"
+          scp -r $(Pipeline.Workspace)/drop/* admin@your-vm-ip:C:\\inetpub\\wwwroot\\webapi
+        displayName: "Copy Application to VM"
+
+      # Reiniciar IIS via SSH
+      - script: |
+          echo "Restarting IIS"
+          ssh admin@your-vm-ip "iisreset"
+        displayName: "Restart IIS Service"
+
+
+
+# trigger:
+# - main
+
+# stages:
+# - stage: Infrastructure
+#   displayName: "Provision Infrastructure"
+#   jobs:
+#     parameters:
+#       terraform_dir: devops/terraform/
+#       ansible_playbook: devops/ansible/deploy.yml
+#     - job: Provision
+#       displayName: "Provision Infrastructure"
+#       pool:
+#         vmImage: 'ubuntu-latest'
+
+#       steps:
+#       - task: UsePythonVersion@0
+#         inputs:
+#           versionSpec: '3.x'
+#           addToPath: true
+
+#       - script: |
+#           echo "Initializing Terraform"
+#           terraform -chdir=$(terraform_dir) init
+#         displayName: "Terraform Init"
+
+#       - script: |
+#           echo "Validating Terraform"
+#           terraform -chdir=$(terraform_dir) validate
+#         displayName: "Terraform Validate"
+
+#       - script: |
+#           echo "Applying Terraform"
+#           terraform -chdir=$(terraform_dir) apply -auto-approve
+#         displayName: "Terraform Apply"
+
+#     #TODO não é necessário instalar o ansible e o terraform?
+#       - script: |
+#           echo "Executing Ansible Playbook"
+#           ansible-playbook -i ansible/inventory.yml $(ansible_playbook)
+#         displayName: "Run Ansible Playbook"
+
+
+# - stage: Build
+#   displayName: "Build Application"
+#   dependsOn: Infrastructure
+#   jobs:
+#     parameters:
+#       solution: '**/*.sln'
+#       buildConfiguration: 'Release'
+#     - job: Build
+#       displayName: "Build Application"
+#       pool:
+#         vmImage: 'windows-latest'
+
+#       steps:
+#       - task: UseDotNet@2
+#         inputs:
+#           packageType: 'sdk'
+#           version: '6.x'
+#           installationPath: $(Agent.ToolsDirectory)/dotnet
+
+#       - task: DotNetCoreCLI@2
+#         inputs:
+#           command: 'restore'
+#           projects: $(solution)
+
+#       - task: DotNetCoreCLI@2
+#         inputs:
+#           command: 'build'
+#           arguments: '--configuration $(buildConfiguration)'
+#           projects: $(solution)
+
+#       - task: PublishBuildArtifacts@1
+#         inputs:
+#           PathtoPublish: $(System.DefaultWorkingDirectory)
+#           ArtifactName: 'drop'
+#           publishLocation: 'Container'
+
+# - stage: Release
+#   displayName: "Release Application"
+#   dependsOn: Build
+#   jobs:
+#     parameters:
+#       artifactPath: $(Pipeline.Workspace)/drop
+#     - job: Release
+#       displayName: "Deploy Application"
+#       pool:
+#         vmImage: 'ubuntu-latest'
+
+#       steps:
+#       - task: DownloadBuildArtifacts@0
+#         inputs:
+#           artifactName: 'drop'
+#           downloadPath: $(artifactPath)
+
+#       - script: |
+#           echo "Copying application files"
+#           scp -r $(artifactPath)/* admin@your-vm-ip:C:\inetpub\wwwroot\webapi 
+#         #TODO abrir porta para o SCP?
+#         displayName: "Copy Application to VM"
+
+#       - script: |
+#           echo "Restarting IIS"
+#           ssh admin@your-vm-ip "iisreset"
+#         displayName: "Restart IIS Service"

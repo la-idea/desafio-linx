@@ -1,0 +1,7 @@
+windows_server:
+  hosts:
+    webserver01:
+      ansible_host: <IP-DA-SUA-VM> # TODO IP da máquina terraform
+      ansible_user: adminuser
+      ansible_password: #TODO secret
+      ansible_connection: winrm

@@ -1,0 +1,25 @@
+parameters:
+  artifactPath: $(Pipeline.Workspace)/drop
+
+jobs:
+- job: Release
+  displayName: "Deploy Application"
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  steps:
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      artifactName: 'drop'
+      downloadPath: $(artifactPath)
+
+  - script: |
+      echo "Copying application files"
+      scp -r $(artifactPath)/* admin@your-vm-ip:C:\inetpub\wwwroot\webapi 
+    #TODO abrir porta para o SCP?
+    displayName: "Copy Application to VM"
+
+  - script: |
+      echo "Restarting IIS"
+      ssh admin@your-vm-ip "iisreset"
+    displayName: "Restart IIS Service"
