@@ -44,28 +44,32 @@ stages:
         vmImage: 'windows-latest'
 
       steps:
-      - task: UseDotNet@2
-        inputs:
-          packageType: 'sdk'
-          version: '6.x'
-          installationPath: $(Agent.ToolsDirectory)/dotnet
-
-      - task: DotNetCoreCLI@2
-        inputs:
-          command: 'restore'
-          projects: '**/*.sln'
-
       - task: DotNetCoreCLI@2
         inputs:
           command: 'build'
-          arguments: '--configuration Release'
-          projects: '**/*.sln'
+          projects: 'Sample.csproj'
+      # - task: UseDotNet@2
+      #   inputs:
+      #     packageType: 'sdk'
+      #     version: '6.x'
+      #     installationPath: $(Agent.ToolsDirectory)/dotnet
 
-      - task: PublishBuildArtifacts@1
-        inputs:
-          PathtoPublish: $(System.DefaultWorkingDirectory)
-          ArtifactName: 'drop'
-          publishLocation: 'Container'
+      # - task: DotNetCoreCLI@2
+      #   inputs:
+      #     command: 'restore'
+      #     projects: '**/*.sln'
+
+      # - task: DotNetCoreCLI@2
+      #   inputs:
+      #     command: 'build'
+      #     arguments: '--configuration Release'
+      #     projects: '**/*.sln'
+
+      # - task: PublishBuildArtifacts@1
+      #   inputs:
+      #     PathtoPublish: $(System.DefaultWorkingDirectory)
+      #     ArtifactName: 'drop'
+      #     publishLocation: 'Container'
 
 # - stage: Release
 #   displayName: "Release Application"
