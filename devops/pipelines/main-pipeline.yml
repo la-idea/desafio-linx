@@ -1,70 +1,71 @@
 trigger:
 - main
 
-stages:
-- stage: Infrastructure
-  displayName: "Provision Infrastructure"
-  jobs:
-    - job: Provision
-      displayName: "Provision Infrastructure"
-      container:
-        image: 'hashicorp/terraform:1.9'
 
-      steps:
-      # Instalar o Ansible
-      - script: |
-          apk add --update --no-cache python3 py3-pip openssl sshpass
-          pip install ansible
-        displayName: "Install Ansible"
-
-      # Inicializar e aplicar Terraform
-      - script: |
-          echo "Initializing Terraform"
-          terraform -chdir=devops/terraform init
-          echo "Validating Terraform"
-          terraform -chdir=devops/terraform validate
-          echo "Applying Terraform"
-          terraform -chdir=devops/terraform apply -auto-approve
-        displayName: "Run Terraform"
-
-      # Executar o Ansible
-      - script: |
-          echo "Executing Ansible Playbook"
-          ansible-playbook -i devops/ansible/inventory.yml devops/ansible/deploy.yml
-        displayName: "Run Ansible Playbook"
-
-# - stage: Build
-#   displayName: "Build Application"
-#   dependsOn: Infrastructure
+# stages:
+# - stage: Infrastructure
+#   displayName: "Provision Infrastructure"
 #   jobs:
-#     - job: Build
-#       displayName: "Build Application"
-#       pool:
-#         vmImage: 'windows-latest'
+#     - job: Provision
+#       displayName: "Provision Infrastructure"
+#       container:
+#         image: 'hashicorp/terraform:1.9'
 
 #       steps:
-#       - task: UseDotNet@2
-#         inputs:
-#           packageType: 'sdk'
-#           version: '6.x'
-#           installationPath: $(Agent.ToolsDirectory)/dotnet
+#       # Instalar o Ansible
+#       - script: |
+#           apk add --update --no-cache python3 py3-pip openssl sshpass
+#           pip install ansible
+#         displayName: "Install Ansible"
 
-#       - task: DotNetCoreCLI@2
-#         inputs:
-#           command: 'restore'
-#           projects: '**/*.sln'
+#       # Inicializar e aplicar Terraform
+#       - script: |
+#           echo "Initializing Terraform"
+#           terraform -chdir=devops/terraform init
+#           echo "Validating Terraform"
+#           terraform -chdir=devops/terraform validate
+#           echo "Applying Terraform"
+#           terraform -chdir=devops/terraform apply -auto-approve
+#         displayName: "Run Terraform"
 
-#       - task: DotNetCoreCLI@2
-#         inputs:
-#           command: 'build'
-#           arguments: '--configuration Release'
-#           projects: '**/*.sln'
+#       # Executar o Ansible
+#       - script: |
+#           echo "Executing Ansible Playbook"
+#           ansible-playbook -i devops/ansible/inventory.yml devops/ansible/deploy.yml
+#         displayName: "Run Ansible Playbook"
+stages:
+- stage: Build
+  displayName: "Build Application"
+  # dependsOn: Infrastructure
+  jobs:
+    - job: Build
+      displayName: "Build Application"
+      pool:
+        vmImage: 'windows-latest'
 
-#       - task: PublishBuildArtifacts@1
-#         inputs:
-#           PathtoPublish: $(System.DefaultWorkingDirectory)
-#           ArtifactName: 'drop'
-#           publishLocation: 'Container'
+      steps:
+      - task: UseDotNet@2
+        inputs:
+          packageType: 'sdk'
+          version: '6.x'
+          installationPath: $(Agent.ToolsDirectory)/dotnet
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'restore'
+          projects: '**/*.sln'
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'build'
+          arguments: '--configuration Release'
+          projects: '**/*.sln'
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: $(System.DefaultWorkingDirectory)
+          ArtifactName: 'drop'
+          publishLocation: 'Container'
 
 # - stage: Release
 #   displayName: "Release Application"
