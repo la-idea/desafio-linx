@@ -1,0 +1,42 @@
+{
+    "variables": {
+      "subscription_id": "",
+      "client_id": "",
+      "client_secret": "",
+      "tenant_id": "",
+      "resource_group": "rg-devops-desafio",
+      "location": "eastus",
+      "image_name": "windows-iis-dotnet6"
+    },
+    "builders": [
+      {
+        "type": "azure-arm",
+        "subscription_id": "{{user `subscription_id`}}",
+        "client_id": "{{user `client_id`}}",
+        "client_secret": "{{user `client_secret`}}",
+        "tenant_id": "{{user `tenant_id`}}",
+        "managed_image_resource_group_name": "{{user `resource_group`}}",
+        "managed_image_name": "{{user `image_name`}}",
+        "location": "{{user `location`}}",
+        "os_type": "Windows",
+        "image_publisher": "MicrosoftWindowsServer",
+        "image_offer": "WindowsServer",
+        "image_sku": "2022-Datacenter",
+        "azure_tags": {
+          "environment": "DevOpsChallenge"
+        }
+      }
+    ],
+    "provisioners": [
+      {
+        "type": "powershell",
+        "inline": [
+          "Install-WindowsFeature -Name Web-Server -IncludeManagementTools",
+          "Install-WindowsFeature -Name Web-Asp-Net45",
+          "Install-WindowsFeature -Name Web-AppInit",
+          "Invoke-WebRequest -Uri https://dotnet.microsoft.com/download/dotnet/thank-you/sdk-6.0.100-windows-x64-installer -OutFile C:\\dotnet-installer.exe",
+          "Start-Process C:\\dotnet-installer.exe -ArgumentList \"/quiet\" -Wait"
+        ]
+      }
+    ]
+  }

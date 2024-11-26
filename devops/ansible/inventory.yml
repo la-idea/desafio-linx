@@ -1,0 +1,7 @@
+windows_server:
+  hosts:
+    webserver01:
+      ansible_host: IP # TODO IP da VM
+      ansible_user: usuarioadmin
+      ansible_password: P@ssw0rd1234!
+      ansible_connection: winrm
