@@ -1,0 +1,40 @@
+---
+- name: Deploy WebAPI to IIS
+  hosts: windows
+  tasks:
+    - name: Create directory for WebAPI
+      ansible.windows.win_shell: |
+        New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\webapi" -Force
+      args:
+        executable: powershell
+
+    - name: Copy WebAPI files to target directory
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/../../drop/"
+        dest: "C:\inetpub\wwwroot\webapi"
+        recurse: yes
+
+    - name: Configure IIS site for WebAPI
+      ansible.windows.win_shell: |
+        Import-Module WebAdministration
+        if (-not (Test-Path "IIS:\Sites\WebAPI")) {
+          New-Website -Name "WebAPI" -PhysicalPath "C:\inetpub\wwwroot\webapi" -Port 80 -Force
+        } else {
+          Set-ItemProperty "IIS:\Sites\WebAPI" -Name bindings -Value @{protocol="http";bindingInformation="*:80:"}
+        }
+      args:
+        executable: powershell
+
+    - name: Ensure WebAPI site is running
+      ansible.windows.win_shell: |
+        Import-Module WebAdministration
+        Start-Website -Name "WebAPI"
+      args:
+        executable: powershell
+
+    - name: Test WebAPI accessibility
+      uri:
+        url: http://{{ ansible_host }}/
+        method: GET
+        return_content: yes
+        status_code: 200

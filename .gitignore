@@ -7,3 +7,43 @@ obj/
 
 # JetBrains Rider
 /.idea
+
+# Arquivos locais de estado do Terraform
+terraform.tfstate
+terraform.tfstate.*
+
+# Backups do estado
+*.tfstate.backup
+
+# Logs de crash do Terraform
+crash.log
+crash.*.log
+
+# Diretório .terraform (contém plugins e módulos baixados)
+.terraform/
+
+# Arquivos que contêm variáveis sensíveis
+*.tfvars
+
+# Informações de lock do estado
+*.tfstate.lock.info
+
+# Arquivos de override
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Diretório de configurações locais do Terraform
+terraform.rc
+terraform.d/
+
+# Arquivos de plano
+*.plan
+
+# Arquivos de saída
+*.out
+
+# Arquivos de configuração do provedor
+.terraformrc
+terraform.rc

@@ -1,101 +1,95 @@
 trigger:
 - main
 
+pool:
+  vmImage: 'ubuntu-latest'
 
-# stages:
-# - stage: Infrastructure
-#   displayName: "Provision Infrastructure"
-#   jobs:
-#     - job: Provision
-#       displayName: "Provision Infrastructure"
-#       container:
-#         image: 'hashicorp/terraform:1.9'
+jobs:
 
-#       steps:
-#       # Instalar o Ansible
-#       - script: |
-#           apk add --update --no-cache python3 py3-pip openssl sshpass
-#           pip install ansible
-#         displayName: "Install Ansible"
+## Infrastructure
 
-#       # Inicializar e aplicar Terraform
-#       - script: |
-#           echo "Initializing Terraform"
-#           terraform -chdir=devops/terraform init
-#           echo "Validating Terraform"
-#           terraform -chdir=devops/terraform validate
-#           echo "Applying Terraform"
-#           terraform -chdir=devops/terraform apply -auto-approve
-#         displayName: "Run Terraform"
+- job: ProvisionInfrastructure
+  displayName: 'Provisionar Infraestrutura com Terraform'
+  pool:
+    vmImage: 'ubuntu-latest'
+  container:
+    image: 'hashicorp/terraform:1.9'
+  steps:
+  - script: |
+      terraform init devops/terraform/
+      terraform apply -auto-approve devops/terraform/ | tee terraform_output.txt
+    displayName: 'Executar Terraform para Provisionamento'
+  - publish: terraform_output.txt
+    artifact: terraform_output
+    displayName: 'Publicar Output do Terraform'
 
-#       # Executar o Ansible
-#       - script: |
-#           echo "Executing Ansible Playbook"
-#           ansible-playbook -i devops/ansible/inventory.yml devops/ansible/deploy.yml
-#         displayName: "Run Ansible Playbook"
-stages:
-- stage: Build
-  displayName: "Build Application"
-  # dependsOn: Infrastructure
-  jobs:
-    - job: Build
-      displayName: "Build Application"
-      pool:
-        vmImage: 'windows-latest'
+# INFO: Lógica não testada utilizando o output do terraform para escrever o inventory do Ansible
 
-      steps:
-      - task: DotNetCoreCLI@2
-        inputs:
-          command: 'build'
-          projects: 'Sample.csproj'
-      # - task: UseDotNet@2
-      #   inputs:
-      #     packageType: 'sdk'
-      #     version: '6.x'
-      #     installationPath: $(Agent.ToolsDirectory)/dotnet
+- job: ConfigureInfrastructure
+  displayName: 'Configurar Infraestrutura com Ansible'
+  dependsOn: ProvisionInfrastructure
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+  - download: current
+    artifact: terraform_output
+    displayName: 'Baixar Output do Terraform'
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y ansible
+    displayName: 'Instalar Ansible'
+  - script: |
+      IP=$(grep -oP '(?<="public_ip": ")[^"]*' terraform_output/terraform_output.txt)
+      echo "[windows]
+$IP ansible_user="usuarioadmin" ansible_password="P@ssw0rd1234!" ansible_connection=winrm ansible_winrm_server_cert_validation=ignore" > devops/ansible/inventory
+    displayName: 'Configurar Inventário do Ansible'
+  - script: |
+      ansible-playbook -i devops/ansible/inventory devops/ansible/playbook.yml
+    displayName: 'Executar Playbook Ansible'
 
-      # - task: DotNetCoreCLI@2
-      #   inputs:
-      #     command: 'restore'
-      #     projects: '**/*.sln'
+## Build
 
-      # - task: DotNetCoreCLI@2
-      #   inputs:
-      #     command: 'build'
-      #     arguments: '--configuration Release'
-      #     projects: '**/*.sln'
+- job: BuildApp
+  displayName: 'Build da Aplicação .NET 6 WebAPI'
+  pool:
+    vmImage: 'windows-latest'
+  steps:
+  - task: UseDotNet@2
+    inputs:
+      packageType: 'sdk'
+      version: '6.x'
+    displayName: 'Instalar .NET 6 SDK'
 
-      # - task: PublishBuildArtifacts@1
-      #   inputs:
-      #     PathtoPublish: $(System.DefaultWorkingDirectory)
-      #     ArtifactName: 'drop'
-      #     publishLocation: 'Container'
+  - script: |
+      dotnet restore **/*.sln
+      dotnet build **/*.sln --configuration Release
+      dotnet publish **/*.sln --configuration Release --output $(Build.ArtifactStagingDirectory)
+    displayName: 'Restaurar, Buildar e Publicar Aplicação'
 
-# - stage: Release
-#   displayName: "Release Application"
-#   dependsOn: Build
-#   jobs:
-#     - job: Release
-#       displayName: "Deploy Application"
-#       pool:
-#         vmImage: 'ubuntu-latest'
+  - publish: $(Build.ArtifactStagingDirectory)
+    artifact: drop
+    displayName: 'Publicar Artefatos'
 
-#       steps:
-#       # Baixar artefatos do build
-#       - task: DownloadBuildArtifacts@0
-#         inputs:
-#           artifactName: 'drop'
-#           downloadPath: $(Pipeline.Workspace)/drop
+## Deploy
 
-#       # Copiar arquivos para VM usando SCP
-#       - script: |
-#           echo "Copying application files"
-#           scp -r $(Pipeline.Workspace)/drop/* admin@your-vm-ip:C:\\inetpub\\wwwroot\\webapi
-#         displayName: "Copy Application to VM"
-
-#       # Reiniciar IIS via SSH
-#       - script: |
-#           echo "Restarting IIS"
-#           ssh admin@your-vm-ip "iisreset"
-#         displayName: "Restart IIS Service"
-
+- job: DeployToIIS
+  displayName: 'Deploy para IIS usando Ansible'
+  dependsOn: BuildApp
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+  - download: current
+    artifact: drop
+    displayName: 'Baixar Artefatos do Build'
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y ansible
+    displayName: 'Instalar Ansible'
+  - script: |
+      IP=$(grep -oP '(?<="public_ip": ")[^"]*' terraform_output/terraform_output.txt)
+      echo "[windows]
+$IP ansible_user="usuarioadmin" ansible_password="P@ssw0rd1234!" ansible_connection=winrm ansible_winrm_server_cert_validation=ignore" > devops/ansible/inventory
+    displayName: 'Configurar Inventário do Ansible para Deploy'
+  - script: |
+      ansible-playbook -i devops/ansible/inventory devops/ansible/deploy_playbook.yml
+    displayName: 'Executar Playbook Ansible para Deploy'
