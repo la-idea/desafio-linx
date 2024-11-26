@@ -1,4 +1,3 @@
-// TODO coletar client_id, client_secret etc
 {
     "variables": {
       "subscription_id": "",
@@ -41,4 +40,3 @@
       }
     ]
   }
-  
